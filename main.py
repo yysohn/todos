@@ -46,14 +46,45 @@ async def home(request: Request, db : Session = Depends(get_db)):
 @app.post("/add")
 async def add(request: Request, task : str = Form(...), db : Session = Depends(get_db)):
     # DB에 저장하기
+    # 클라이언트에서 넘어온 task데이터를 todo 객체로 만듦
     todo = models.Todo(task=task)
+    # 클라이언트에서 넘어온 데이터를 테이블에 추가함
     db.add(todo)
+    # 테이블에 적용
     db.commit()
     # todos 조회 수행하는 함수로 제어권 넘김
+    # "home" : 다른 엔드포인트의 함수 이름
     return RedirectResponse(url=app.url_path_for("home"), status_code=status.HTTP_303_SEE_OTHER)
-    # return templates.TemplateResponse(
-    #     "index.html",
-    #     {"request": request, "todo": todo}
-    # )
-# if __name__ == "__main__":
-#    uvicorn.run("main:app", reload=True)
+
+# todo 수정 : 
+# 업데이트를 위한 조회와 수정데이터 적용 2개가 필요
+
+# 127.0.0.1:8000/edit/6
+@app.get("/edit/{todo_id}")
+async def update(request: Request, todo_id: int, db : Session = Depends(get_db)):
+    # DB에서 todo 클래스와 연결하고 조회
+    # print("id :", id)
+    todo = db.query(models.Todo).filter(models.Todo.id==todo_id).first()
+    todos = db.query(models.Todo).order_by(models.Todo.id.desc())
+    # print(todo)
+    # 하여 리턴하기(편집가능한 html에 렌더링해서)
+    return templates.TemplateResponse(
+        "edit.html",
+        {"request": request, "todo": todo, "todos": todos}
+    )
+
+@app.post("/edit/{todo_id}")
+async def update(request: Request, todo_id: int, task: str = Form(...), completed: bool = Form(False), db: Session = Depends(get_db)):
+    todo = db.query(models.Todo).filter(models.Todo.id == todo_id).first()
+    todo.task = task
+    todo.completed = completed
+    db.commit()
+    return RedirectResponse(url=app.url_path_for("home"), status_code=status.HTTP_303_SEE_OTHER)
+
+# todo 삭제
+@app.get("/delete/{todo_id}")
+async def delete(request: Request, todo_id: int, db: Session = Depends(get_db)):    
+    todo = db.query(models.Todo).filter(models.Todo.id == todo_id).first()
+    db.delete(todo)
+    db.commit()
+    return RedirectResponse(url=app.url_path_for("home"), status_code=status.HTTP_303_SEE_OTHER)
